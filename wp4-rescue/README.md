@@ -44,6 +44,11 @@ Monthly automation: `crontab -e` →
 A separate **Fit** flag (coordinator in RO/HU/IT/HR/CY/PL/ES/UA) adds +5 to
 the *outreach priority* ordering but never enters the distress score itself.
 
+**Eligibility (before any scoring):** only *ongoing* projects — status
+SIGNED/active, not yet ended — that **started no later than Dec 31 of the
+previous year**. A project started this year cannot be in distress yet
+(toggle: `REQUIRE_STARTED_BY_PREVIOUS_YEAR` in `config.py`).
+
 All thresholds live in `wp4rescue/config.py`. Default output cutoff is 40 —
 tune it after the first run to get a reviewable ~50/month (PRD §10.3).
 
