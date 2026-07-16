@@ -61,6 +61,28 @@ wp4rescue/
 sample_data/    synthetic CORDIS-format CSVs for the demo & smoke tests
 ```
 
+## Dashboard (Cloudflare Pages)
+
+`site/` is a **static viewer app with zero data in it** — this repo is public,
+so prospect data never touches git. You drag-and-drop your locally generated
+`prospects.csv` into the page; data stays in your browser (localStorage).
+Pipeline-status edits made in the dashboard are saved locally and come back
+out via *Export CSV* — feed that file to the next `make refresh` cycle.
+
+Deploy (Cloudflare Pages ↔ GitHub, no build step):
+
+1. Cloudflare dashboard → **Workers & Pages → Create → Pages → Connect to Git**
+   → select `liviupop/comenzimunca`.
+2. Build settings: *Framework preset* **None**, *Build command* — leave empty,
+   *Build output directory* **`wp4-rescue/site`**.
+3. Recommended: **Zero Trust → Access → Applications → Add an application →
+   Self-hosted**, domain = your `*.pages.dev` host, policy = *Allow* your
+   email (One-time PIN). Free for up to 50 users. The page also ships
+   `noindex` headers and meta, but Access is the real lock.
+
+Every push to the default branch redeploys the viewer. Since the data lives
+only in your browser, redeploys never touch it.
+
 ## Pipeline tracking (F6)
 
 `prospects-*.csv` has a `pipeline_status` column
