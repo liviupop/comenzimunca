@@ -1,0 +1,571 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>wp4.rescue — prospect dashboard</title>
+<style>
+  :root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;      /* chart surface / cards */
+    --page: #f9f9f7;
+    --text-primary: #0b0b0b;
+    --text-secondary: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --series-1: #2a78d6;       /* S2 timeline */
+    --series-2: #008300;       /* S3 evidence */
+    --series-3: #e87ba4;       /* S4 deliverables */
+    --series-4: #eda100;       /* modifiers */
+    --status-serious: #ec835a; /* HOT reporting window */
+    --wash: rgba(11,11,11,0.04);
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      color-scheme: dark;
+      --surface-1: #1a1a19;
+      --page: #0d0d0d;
+      --text-primary: #ffffff;
+      --text-secondary: #c3c2b7;
+      --muted: #898781;
+      --grid: #2c2c2a;
+      --baseline: #383835;
+      --border: rgba(255,255,255,0.10);
+      --series-1: #3987e5;
+      --series-2: #008300;
+      --series-3: #d55181;
+      --series-4: #c98500;
+      --status-serious: #ec835a;
+      --wash: rgba(255,255,255,0.06);
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--page); color: var(--text-primary);
+    font: 14px/1.5 system-ui, -apple-system, "Segoe UI", sans-serif;
+  }
+  .wrap { max-width: 1280px; margin: 0 auto; padding: 24px 20px 64px; }
+  header { display: flex; flex-wrap: wrap; align-items: baseline; gap: 12px; margin-bottom: 4px; }
+  h1 { font-size: 20px; margin: 0; }
+  .privacy { color: var(--text-secondary); font-size: 13px; }
+  .toolbar { margin-left: auto; display: flex; gap: 8px; }
+  button, select, input {
+    font: inherit; color: var(--text-primary); background: var(--surface-1);
+    border: 1px solid var(--border); border-radius: 8px; padding: 6px 12px;
+  }
+  button { cursor: pointer; }
+  button:hover { background: var(--wash); }
+  button.primary { background: var(--series-1); color: #fff; border-color: transparent; }
+
+  /* one filter row above everything it scopes */
+  .filters {
+    display: flex; flex-wrap: wrap; gap: 8px; align-items: center;
+    margin: 16px 0 20px;
+  }
+  .filters label { display: flex; align-items: center; gap: 6px; color: var(--text-secondary); font-size: 13px; }
+  .filters input[type="search"] { width: 200px; }
+  .filters input[type="number"] { width: 72px; }
+
+  .tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 20px; }
+  .tile {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 14px 16px;
+  }
+  .tile .label { color: var(--text-secondary); font-size: 13px; }
+  .tile .value { font-size: 30px; font-weight: 600; margin-top: 2px; }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: 12px; padding: 18px 20px; margin-bottom: 20px;
+  }
+  .card h2 { font-size: 14px; font-weight: 600; margin: 0 0 2px; }
+  .card .sub { color: var(--muted); font-size: 12.5px; margin: 0 0 14px; }
+
+  /* histogram */
+  #histo { width: 100%; height: auto; display: block; }
+  #histo text { fill: var(--muted); font: 11px system-ui, sans-serif; font-variant-numeric: tabular-nums; }
+  #histo .grid { stroke: var(--grid); stroke-width: 1; }
+  #histo .base { stroke: var(--baseline); stroke-width: 1; }
+  #histo rect.bar { fill: var(--series-1); }
+  #histo rect.hit { fill: transparent; cursor: default; }
+  #histo rect.bar.lift { filter: brightness(1.15); }
+
+  /* legend for the breakdown series */
+  .legend { display: flex; flex-wrap: wrap; gap: 14px; margin: 0 0 12px; font-size: 12.5px; color: var(--text-secondary); }
+  .legend .key { display: inline-flex; align-items: center; gap: 6px; }
+  .legend .swatch { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
+
+  /* table */
+  .tablewrap { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; min-width: 1080px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--text-secondary); font-weight: 600; font-size: 12.5px; white-space: nowrap;
+       cursor: pointer; user-select: none; position: sticky; top: 0; background: var(--surface-1); }
+  th .arrow { color: var(--muted); font-size: 10px; }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+  td .title { color: var(--text-secondary); font-size: 12.5px; display: block; max-width: 340px; }
+  td a { color: var(--series-1); text-decoration: none; }
+  td a:hover { text-decoration: underline; }
+  tr:hover td { background: var(--wash); }
+
+  .stack { display: flex; width: 120px; height: 12px; border-radius: 0 4px 4px 0; }
+  .stack span { height: 100%; }
+  .stack span + span { margin-left: 2px; } /* 2px surface gap between segments */
+  .stack span:last-child { border-radius: 0 4px 4px 0; }
+  .stackhit { display: inline-block; padding: 4px 0; cursor: default; } /* hit target > mark */
+  .stackvals { display: block; color: var(--muted); font-size: 11px; font-variant-numeric: tabular-nums; margin-top: 2px; }
+
+  .badge {
+    display: inline-block; font-size: 11.5px; padding: 1px 8px; border-radius: 999px;
+    border: 1px solid var(--border); color: var(--text-secondary); white-space: nowrap;
+  }
+  .badge.hot { border-color: var(--status-serious); color: var(--text-primary); }
+  .badge.hot::before { content: "▲ "; color: var(--status-serious); }
+  .badge.fit { border-color: var(--baseline); }
+  .badge.fit::before { content: "✓ "; color: var(--text-secondary); }
+
+  select.status { padding: 3px 6px; font-size: 12.5px; border-radius: 6px; }
+
+  /* drop zone / empty state */
+  #dropzone {
+    border: 2px dashed var(--baseline); border-radius: 16px; padding: 56px 24px;
+    text-align: center; color: var(--text-secondary); margin: 32px 0;
+  }
+  #dropzone.over { border-color: var(--series-1); background: var(--wash); }
+  #dropzone p { margin: 6px 0; }
+  #dropzone .big { font-size: 17px; color: var(--text-primary); }
+
+  /* tooltip */
+  #tip {
+    position: fixed; pointer-events: none; z-index: 10; display: none;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px;
+    padding: 8px 12px; font-size: 12.5px; box-shadow: 0 4px 16px rgba(0,0,0,.15);
+    max-width: 280px;
+  }
+  #tip .row { display: flex; align-items: center; gap: 8px; }
+  #tip .k { width: 14px; height: 3px; border-radius: 2px; flex: none; }
+  #tip .v { font-weight: 600; font-variant-numeric: tabular-nums; margin-left: auto; }
+  #tip .name { color: var(--text-secondary); }
+  .hidden { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>wp4.rescue</h1>
+    <span class="privacy">Data never leaves this browser — stored in localStorage only.</span>
+    <div class="toolbar">
+      <button id="btn-load">Load prospects.csv</button>
+      <button id="btn-demo">Demo data</button>
+      <button id="btn-export" class="hidden">Export CSV (with statuses)</button>
+      <button id="btn-clear" class="hidden">Clear</button>
+      <input type="file" id="file" accept=".csv" class="hidden">
+    </div>
+  </header>
+
+  <div id="dropzone">
+    <p class="big">Drop your <strong>prospects.csv</strong> here</p>
+    <p>Generated locally by <code>make refresh</code> — this page is only a viewer.</p>
+    <p>Or <button id="btn-demo2">load the synthetic demo data</button> to see how it works.</p>
+  </div>
+
+  <div id="app" class="hidden">
+    <div class="filters">
+      <input type="search" id="f-search" placeholder="Search acronym, title, coordinator…">
+      <label>Min score <input type="number" id="f-score" value="0" min="0" max="100" step="5"></label>
+      <label>Country
+        <select id="f-country"><option value="">All</option></select>
+      </label>
+      <label>Status
+        <select id="f-status"><option value="">All</option></select>
+      </label>
+      <label><input type="checkbox" id="f-fit"> Fit only</label>
+      <label><input type="checkbox" id="f-hot"> Hot only</label>
+    </div>
+
+    <div class="tiles">
+      <div class="tile"><div class="label">Prospects</div><div class="value" id="t-count">–</div></div>
+      <div class="tile"><div class="label">Hot (reporting soon)</div><div class="value" id="t-hot">–</div></div>
+      <div class="tile"><div class="label">Fit countries</div><div class="value" id="t-fit">–</div></div>
+      <div class="tile"><div class="label">Median score</div><div class="value" id="t-median">–</div></div>
+    </div>
+
+    <div class="card">
+      <h2>Distress score distribution</h2>
+      <p class="sub">For threshold calibration — pick the cutoff that yields a reviewable batch.</p>
+      <svg id="histo" viewBox="0 0 960 200" role="img" aria-label="Histogram of distress scores"></svg>
+    </div>
+
+    <div class="card">
+      <h2>Ranked prospects</h2>
+      <p class="sub">Sorted by outreach priority. Pipeline status edits are saved locally and included in the CSV export.</p>
+      <div class="legend" id="legend"></div>
+      <div class="tablewrap"><table id="tbl">
+        <thead><tr id="thead"></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+</div>
+<div id="tip"></div>
+
+<script>
+"use strict";
+/* ------------------------------------------------------------------ data */
+const LS_DATA = "wp4rescue-data", LS_STATUS = "wp4rescue-status";
+const PIPELINE = ["new","researched","contacted","replied","meeting","won","lost"];
+const SERIES = [
+  { key: "s2_timeline",        name: "S2 timeline",     cssVar: "--series-1" },
+  { key: "s3_absence",         name: "S3 evidence",     cssVar: "--series-2" },
+  { key: "s4_deliverable_gap", name: "S4 deliverables", cssVar: "--series-3" },
+  { key: "modifiers",          name: "Modifiers",       cssVar: "--series-4" },
+];
+const DEMO = [
+  {project_id:"101000001",acronym:"CULTMAP",title:"Interactive Cultural Heritage Mapping Platform",programme:"HORIZON",coordinator_name:"ASOCIATIA CULTURALA TRANSILVANIA",coordinator_country:"RO",start_date:"2024-08-01",end_date:"2027-07-31",pct_elapsed:"65.3",total_cost:"412000",matched_keywords:"digital archive|e-learning|interactive|platform|portal|repository",distress_score:"85",s2_timeline:"40",s3_absence:"15",s4_deliverable_gap:"20",modifiers:"10",fit:"True",priority:"90",url:"",url_status:"no_url",source_link:"https://cordis.europa.eu/project/id/101000001",next_reporting_window:"~M36 (2027-08)",pipeline_status:"new"},
+  {project_id:"101000004",acronym:"HERITAGE3D",title:"Virtual Reconstruction of Endangered Monuments",programme:"HORIZON",coordinator_name:"DIGITAL HERITAGE GMBH",coordinator_country:"DE",start_date:"2023-01-01",end_date:"2027-02-28",pct_elapsed:"85.1",total_cost:"980000",matched_keywords:"application|database|repository|virtual|vr|web-based",distress_score:"40",s2_timeline:"25",s3_absence:"0",s4_deliverable_gap:"10",modifiers:"5",fit:"False",priority:"40",url:"https://heritage3d.example.org",url_status:"unchecked",source_link:"https://cordis.europa.eu/project/id/101000004",next_reporting_window:"~M54 (2027-07)",pipeline_status:"new"},
+  {project_id:"101000002",acronym:"EDUGAME",title:"Gamified STEM Education for Secondary Schools",programme:"HORIZON",coordinator_name:"UNIVERSITA DI BOLOGNA",coordinator_country:"IT",start_date:"2025-03-01",end_date:"2028-02-28",pct_elapsed:"45.9",total_cost:"1250000",matched_keywords:"application|dashboard|e-learning|gamified|online course|serious game",distress_score:"15",s2_timeline:"15",s3_absence:"0",s4_deliverable_gap:"0",modifiers:"0",fit:"True",priority:"20",url:"https://www.unibo.it",url_status:"unchecked",source_link:"https://cordis.europa.eu/project/id/101000002",next_reporting_window:"~M18 (2026-09) HOT",pipeline_status:"new"},
+];
+
+let rows = [];                 // parsed prospects
+let statuses = {};             // project_id -> pipeline status (localStorage)
+let sortKey = "priority", sortDir = -1;
+
+/* ------------------------------------------------------- CSV parse/emit */
+function parseCSV(text) {
+  const out = []; let row = [], field = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQ) {
+      if (c === '"') { if (text[i+1] === '"') { field += '"'; i++; } else inQ = false; }
+      else field += c;
+    } else if (c === '"') inQ = true;
+    else if (c === ",") { row.push(field); field = ""; }
+    else if (c === "\n" || c === "\r") {
+      if (c === "\r" && text[i+1] === "\n") i++;
+      row.push(field); field = "";
+      if (row.length > 1 || row[0] !== "") out.push(row);
+      row = [];
+    } else field += c;
+  }
+  if (field !== "" || row.length) { row.push(field); out.push(row); }
+  if (!out.length) return [];
+  const header = out[0];
+  return out.slice(1).map(r => Object.fromEntries(header.map((h, i) => [h, r[i] ?? ""])));
+}
+function toCSV(objs) {
+  if (!objs.length) return "";
+  const cols = Object.keys(objs[0]);
+  const esc = v => { v = String(v ?? ""); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  return [cols.join(","), ...objs.map(o => cols.map(c => esc(o[c])).join(","))].join("\n");
+}
+
+/* ------------------------------------------------------------- helpers */
+const $ = id => document.getElementById(id);
+const num = v => { const n = parseFloat(v); return Number.isFinite(n) ? n : 0; };
+const isFit = r => /^true$/i.test(r.fit || "");
+const isHot = r => /HOT/.test(r.next_reporting_window || "");
+const fmtEUR = v => { const n = num(v); return n >= 1e6 ? (n/1e6).toFixed(1) + "M" : n >= 1e3 ? Math.round(n/1e3) + "K" : String(Math.round(n)); };
+const cssVal = v => getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const statusOf = r => statuses[r.project_id] || r.pipeline_status || "new";
+
+function save() {
+  try {
+    localStorage.setItem(LS_DATA, JSON.stringify(rows));
+    localStorage.setItem(LS_STATUS, JSON.stringify(statuses));
+  } catch (e) { /* private mode: viewer still works, edits just don't persist */ }
+}
+
+/* -------------------------------------------------------------- tooltip */
+const tip = $("tip");
+function showTip(x, y, build) {
+  tip.textContent = "";
+  build(tip);
+  tip.style.display = "block";
+  const r = tip.getBoundingClientRect();
+  tip.style.left = Math.min(x + 14, innerWidth - r.width - 8) + "px";
+  tip.style.top  = Math.min(y + 14, innerHeight - r.height - 8) + "px";
+}
+function hideTip() { tip.style.display = "none"; }
+function tipRow(el, name, value, color) {
+  const row = document.createElement("div"); row.className = "row";
+  if (color) { const k = document.createElement("span"); k.className = "k"; k.style.background = color; row.appendChild(k); }
+  const n = document.createElement("span"); n.className = "name"; n.textContent = name; row.appendChild(n);
+  const v = document.createElement("span"); v.className = "v"; v.textContent = value; row.appendChild(v);
+  el.appendChild(row);
+}
+
+/* -------------------------------------------------------------- filters */
+function filtered() {
+  const q = $("f-search").value.trim().toLowerCase();
+  const minScore = num($("f-score").value);
+  const country = $("f-country").value;
+  const pstatus = $("f-status").value;
+  const fitOnly = $("f-fit").checked, hotOnly = $("f-hot").checked;
+  return rows.filter(r =>
+    num(r.distress_score) >= minScore
+    && (!country || r.coordinator_country === country)
+    && (!pstatus || statusOf(r) === pstatus)
+    && (!fitOnly || isFit(r))
+    && (!hotOnly || isHot(r))
+    && (!q || [r.acronym, r.title, r.coordinator_name].join(" ").toLowerCase().includes(q))
+  );
+}
+
+/* ---------------------------------------------------------------- tiles */
+function renderTiles(data) {
+  $("t-count").textContent = data.length;
+  $("t-hot").textContent = data.filter(isHot).length;
+  $("t-fit").textContent = data.filter(isFit).length;
+  const s = data.map(r => num(r.distress_score)).sort((a, b) => a - b);
+  $("t-median").textContent = s.length ? Math.round((s[(s.length-1)>>1] + s[s.length>>1]) / 2) : "–";
+}
+
+/* ------------------------------------------------------------ histogram */
+function renderHisto(data) {
+  const svg = $("histo");
+  svg.textContent = "";
+  const NS = "http://www.w3.org/2000/svg";
+  const W = 960, H = 200, m = { l: 36, r: 12, t: 10, b: 26 };
+  const bins = Array.from({ length: 10 }, () => 0);
+  data.forEach(r => bins[Math.min(9, Math.floor(num(r.distress_score) / 10))]++);
+  const maxV = Math.max(1, ...bins);
+  const yTicks = maxV <= 5 ? maxV : 5;
+  const plotW = W - m.l - m.r, plotH = H - m.t - m.b;
+  const el = (tag, attrs) => { const e = document.createElementNS(NS, tag); for (const k in attrs) e.setAttribute(k, attrs[k]); return e; };
+
+  for (let i = 0; i <= yTicks; i++) {           // hairline grid + tabular ticks
+    const v = Math.round(maxV * i / yTicks), y = m.t + plotH - plotH * i / yTicks;
+    svg.appendChild(el("line", { class: "grid", x1: m.l, x2: W - m.r, y1: y, y2: y }));
+    const t = el("text", { x: m.l - 6, y: y + 3, "text-anchor": "end" });
+    t.textContent = v; svg.appendChild(t);
+  }
+  svg.appendChild(el("line", { class: "base", x1: m.l, x2: W - m.r, y1: m.t + plotH, y2: m.t + plotH }));
+
+  const slot = plotW / 10, barW = Math.min(24, slot - 12);
+  bins.forEach((v, i) => {
+    const x = m.l + slot * i + (slot - barW) / 2;
+    const h = plotH * v / maxV;
+    if (v > 0) {
+      const bar = el("rect", { class: "bar", x, y: m.t + plotH - h, width: barW, height: h, rx: 4 });
+      if (h > 4) {                               // 4px rounded data-end, square baseline
+        const sq = el("rect", { class: "bar", x, y: m.t + plotH - Math.min(h, 4), width: barW, height: Math.min(h, 4) });
+        svg.appendChild(bar); svg.appendChild(sq);
+      } else svg.appendChild(bar);
+    }
+    const lbl = el("text", { x: m.l + slot * i + slot / 2, y: H - 8, "text-anchor": "middle" });
+    lbl.textContent = i === 9 ? "90–100" : `${i * 10}–${i * 10 + 9}`;
+    svg.appendChild(lbl);
+    const hit = el("rect", { class: "hit", x: m.l + slot * i, y: m.t, width: slot, height: plotH, tabindex: 0 });
+    const show = ev => {
+      svg.querySelectorAll(".bar.lift").forEach(b => b.classList.remove("lift"));
+      const p = ev.touches ? ev.touches[0] : ev;
+      showTip(p.clientX ?? innerWidth / 2, p.clientY ?? innerHeight / 2, t =>
+        tipRow(t, `score ${lbl.textContent}`, `${v} project${v === 1 ? "" : "s"}`, cssVal("--series-1")));
+    };
+    hit.addEventListener("pointermove", show);
+    hit.addEventListener("focus", show);
+    hit.addEventListener("pointerleave", hideTip);
+    hit.addEventListener("blur", hideTip);
+    svg.appendChild(hit);
+  });
+}
+
+/* ---------------------------------------------------------------- table */
+const COLS = [
+  { key: "priority",         label: "Prio",     num: true },
+  { key: "distress_score",   label: "Score",    num: true },
+  { key: "_breakdown",       label: "Breakdown" },
+  { key: "acronym",          label: "Project" },
+  { key: "coordinator_name", label: "Coordinator" },
+  { key: "pct_elapsed",      label: "% elapsed", num: true },
+  { key: "total_cost",       label: "Budget €", num: true },
+  { key: "next_reporting_window", label: "Next report" },
+  { key: "url_status",       label: "URL" },
+  { key: "_status",          label: "Pipeline" },
+];
+
+function renderLegend() {
+  const lg = $("legend"); lg.textContent = "";
+  SERIES.forEach(s => {
+    const k = document.createElement("span"); k.className = "key";
+    const sw = document.createElement("span"); sw.className = "swatch"; sw.style.background = cssVal(s.cssVar);
+    const name = document.createElement("span"); name.textContent = s.name;
+    k.appendChild(sw); k.appendChild(name); lg.appendChild(k);
+  });
+}
+
+function renderHead() {
+  const tr = $("thead"); tr.textContent = "";
+  COLS.forEach(c => {
+    const th = document.createElement("th");
+    th.textContent = c.label + " ";
+    if (c.key === sortKey || (c.key === "_status" && sortKey === "_status")) {
+      const a = document.createElement("span"); a.className = "arrow";
+      a.textContent = sortDir < 0 ? "▼" : "▲"; th.appendChild(a);
+    }
+    th.addEventListener("click", () => {
+      if (sortKey === c.key) sortDir = -sortDir; else { sortKey = c.key; sortDir = c.num ? -1 : 1; }
+      render();
+    });
+    tr.appendChild(th);
+  });
+}
+
+function breakdownCell(r) {
+  const wrapHit = document.createElement("span"); wrapHit.className = "stackhit"; wrapHit.tabIndex = 0;
+  const stack = document.createElement("span"); stack.className = "stack";
+  SERIES.forEach(s => {
+    const v = num(r[s.key]);
+    if (v <= 0) return;
+    const seg = document.createElement("span");
+    seg.style.width = `${v * 1.2}px`;          // 100 pts → 120px track
+    seg.style.background = cssVal(s.cssVar);
+    stack.appendChild(seg);
+  });
+  wrapHit.appendChild(stack);
+  const vals = document.createElement("span"); vals.className = "stackvals";
+  vals.textContent = SERIES.map(s => num(r[s.key])).join(" · ");  // legend order
+  wrapHit.appendChild(vals);
+  const show = ev => showTip(ev.clientX ?? innerWidth/2, ev.clientY ?? innerHeight/2, t => {
+    SERIES.forEach(s => tipRow(t, s.name, String(num(r[s.key])), cssVal(s.cssVar)));
+    tipRow(t, "Total", String(num(r.distress_score)));
+  });
+  wrapHit.addEventListener("pointermove", show);
+  wrapHit.addEventListener("focus", show);
+  wrapHit.addEventListener("pointerleave", hideTip);
+  wrapHit.addEventListener("blur", hideTip);
+  return wrapHit;
+}
+
+function renderBody(data) {
+  const tb = $("tbody"); tb.textContent = "";
+  data.forEach(r => {
+    const tr = document.createElement("tr");
+    const td = (cls) => { const d = document.createElement("td"); if (cls) d.className = cls; tr.appendChild(d); return d; };
+
+    td("num").textContent = r.priority;
+    td("num").textContent = r.distress_score;
+    td().appendChild(breakdownCell(r));
+
+    const proj = td();
+    const a = document.createElement("a");
+    a.href = r.source_link || "#"; a.target = "_blank"; a.rel = "noopener noreferrer";
+    a.textContent = r.acronym || r.project_id;
+    proj.appendChild(a);
+    if (isFit(r)) { proj.append(" "); const b = document.createElement("span"); b.className = "badge fit"; b.textContent = "fit"; proj.appendChild(b); }
+    const t = document.createElement("span"); t.className = "title"; t.textContent = r.title || ""; proj.appendChild(t);
+
+    const coord = td();
+    coord.textContent = r.coordinator_name || "";
+    const cc = document.createElement("span"); cc.className = "title"; cc.textContent = r.coordinator_country || ""; coord.appendChild(cc);
+
+    td("num").textContent = r.pct_elapsed ? r.pct_elapsed + "%" : "";
+    td("num").textContent = fmtEUR(r.total_cost);
+
+    const rep = td();
+    const win = (r.next_reporting_window || "").replace(/\s*HOT\s*$/, "");
+    rep.textContent = win + " ";
+    if (isHot(r)) { const b = document.createElement("span"); b.className = "badge hot"; b.textContent = "HOT"; rep.appendChild(b); }
+
+    const urlTd = td();
+    if (r.url) {
+      const ua = document.createElement("a"); ua.href = r.url; ua.target = "_blank"; ua.rel = "noopener noreferrer";
+      ua.textContent = r.url_status || "link"; urlTd.appendChild(ua);
+    } else urlTd.textContent = r.url_status || "no_url";
+
+    const st = td();
+    const sel = document.createElement("select"); sel.className = "status";
+    PIPELINE.forEach(p => { const o = document.createElement("option"); o.value = p; o.textContent = p; sel.appendChild(o); });
+    sel.value = PIPELINE.includes(statusOf(r)) ? statusOf(r) : "new";
+    sel.addEventListener("change", () => { statuses[r.project_id] = sel.value; save(); renderTiles(filtered()); });
+    st.appendChild(sel);
+
+    tb.appendChild(tr);
+  });
+}
+
+/* --------------------------------------------------------------- render */
+function render() {
+  const data = filtered();
+  const key = sortKey === "_status" ? null : sortKey;
+  if (key && key !== "_breakdown") {
+    const numeric = COLS.find(c => c.key === key)?.num;
+    data.sort((a, b) => {
+      const av = numeric ? num(a[key]) : String(a[key] ?? ""), bv = numeric ? num(b[key]) : String(b[key] ?? "");
+      return (av < bv ? -1 : av > bv ? 1 : 0) * sortDir;
+    });
+  } else if (sortKey === "_status") {
+    data.sort((a, b) => (PIPELINE.indexOf(statusOf(a)) - PIPELINE.indexOf(statusOf(b))) * sortDir);
+  }
+  renderTiles(data);
+  renderHisto(data);
+  renderHead();
+  renderBody(data);
+}
+
+function boot(newRows) {
+  rows = newRows;
+  rows.forEach(r => { if (r.pipeline_status && !(r.project_id in statuses)) statuses[r.project_id] = r.pipeline_status; });
+  save();
+  const countries = [...new Set(rows.map(r => r.coordinator_country).filter(Boolean))].sort();
+  const cs = $("f-country");
+  cs.querySelectorAll("option:not(:first-child)").forEach(o => o.remove());
+  countries.forEach(c => { const o = document.createElement("option"); o.value = c; o.textContent = c; cs.appendChild(o); });
+  const ss = $("f-status");
+  ss.querySelectorAll("option:not(:first-child)").forEach(o => o.remove());
+  PIPELINE.forEach(p => { const o = document.createElement("option"); o.value = p; o.textContent = p; ss.appendChild(o); });
+  renderLegend();
+  $("dropzone").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("btn-export").classList.remove("hidden");
+  $("btn-clear").classList.remove("hidden");
+  render();
+}
+
+/* --------------------------------------------------------------- wiring */
+$("btn-load").addEventListener("click", () => $("file").click());
+$("file").addEventListener("change", e => {
+  const f = e.target.files[0];
+  if (f) f.text().then(t => boot(parseCSV(t)));
+});
+[$("btn-demo"), $("btn-demo2")].forEach(b => b.addEventListener("click", () => boot(structuredClone(DEMO))));
+$("btn-clear").addEventListener("click", () => {
+  localStorage.removeItem(LS_DATA); localStorage.removeItem(LS_STATUS);
+  rows = []; statuses = {};
+  $("app").classList.add("hidden"); $("btn-export").classList.add("hidden"); $("btn-clear").classList.add("hidden");
+  $("dropzone").classList.remove("hidden");
+});
+$("btn-export").addEventListener("click", () => {
+  const merged = rows.map(r => ({ ...r, pipeline_status: statusOf(r) }));
+  const blob = new Blob([toCSV(merged)], { type: "text/csv" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = "prospects-updated.csv";
+  a.click();
+  URL.revokeObjectURL(a.href);
+});
+["f-search","f-score","f-country","f-status","f-fit","f-hot"].forEach(id =>
+  $(id).addEventListener("input", render));
+
+const dz = $("dropzone");
+["dragover","dragenter"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.add("over"); }));
+["dragleave","drop"].forEach(ev => dz.addEventListener(ev, e => { e.preventDefault(); dz.classList.remove("over"); }));
+dz.addEventListener("drop", e => {
+  const f = e.dataTransfer.files[0];
+  if (f) f.text().then(t => boot(parseCSV(t)));
+});
+matchMedia("(prefers-color-scheme: dark)").addEventListener("change", () => { if (rows.length) render(); });
+
+/* restore a previous session */
+try {
+  const savedStatus = localStorage.getItem(LS_STATUS);
+  if (savedStatus) statuses = JSON.parse(savedStatus);
+  const saved = localStorage.getItem(LS_DATA);
+  if (saved) { const r = JSON.parse(saved); if (Array.isArray(r) && r.length) boot(r); }
+} catch (e) { /* corrupt storage: start from the drop zone */ }
+</script>
+</body>
+</html>
