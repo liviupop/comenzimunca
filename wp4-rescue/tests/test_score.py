@@ -26,11 +26,24 @@ TODAY = dt.date(2026, 7, 16)
 def test_s1_matches_digital_keywords():
     assert "platform" in s1_gate("An interactive platform", "")
     assert s1_gate("", "We build a gamified e-learning MOOC") != []
-    assert "app" in s1_gate("A mobile app for farmers", None)
+    assert s1_gate("A mobile app for farmers", None) != []
 
 
 def test_s1_rejects_non_digital():
     assert s1_gate("Quantum materials synthesis", "spin transport studies") == []
+
+
+def test_s1_lone_weak_keyword_fails():
+    # calibrated on real CORDIS data: generic tech-speak must not pass
+    assert s1_gate("", "a novel biotech platform for enzyme discovery") == []
+    assert s1_gate("", "with wide industrial applications") == []
+    assert s1_gate("", "applications of our catalysis platform") != []  # 2 weak
+
+
+def test_s1_strong_for_s4_fallback():
+    from wp4rescue.score import s1_strong
+    assert s1_strong("", "an e-learning portal for teachers") is True
+    assert s1_strong("", "a platform for enzyme applications") is False
 
 
 def test_s1_uses_deliverable_titles():
