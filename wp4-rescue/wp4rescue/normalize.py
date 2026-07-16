@@ -35,6 +35,7 @@ PROJECT_COLUMNS = {
 }
 # optional in some bundles (H2020 had projectUrl in project.csv, HORIZON not)
 PROJECT_URL_CANDIDATES = ["projectUrl", "url", "projectWebsite"]
+PROJECT_SCHEME_CANDIDATES = ["fundingScheme", "frameworkProgramme"]
 
 ORG_COLUMNS = {
     "project_id": ["projectID"],
@@ -111,6 +112,8 @@ def normalize(
     pc = _resolve(list(proj_rel.columns), PROJECT_COLUMNS, project_csv.name)
     url_col = _optional(list(proj_rel.columns), PROJECT_URL_CANDIDATES)
     url_expr = f'NULLIF(TRIM(p."{url_col}"), \'\')' if url_col else "NULL"
+    scheme_col = _optional(list(proj_rel.columns), PROJECT_SCHEME_CANDIDATES)
+    scheme_expr = f'p."{scheme_col}"' if scheme_col else "NULL"
 
     org_rel = _read_csv_df(organization_csv)
     oc = _resolve(list(org_rel.columns), ORG_COLUMNS, organization_csv.name)
@@ -152,6 +155,7 @@ def normalize(
             c.coordinator_country,
             c.coordinator_activity_type,
             COALESCE(pa.n_partners, 1)                AS n_partners,
+            {scheme_expr}                             AS funding_scheme,
             p."{pc['status']}"                        AS status,
             'https://cordis.europa.eu/project/id/' || p."{pc['project_id']}"
                                                       AS source_link
