@@ -1,0 +1,7 @@
+data/raw/
+data/out/
+data/cache/
+data/wp4.db
+__pycache__/
+*.pyc
+.pytest_cache/

@@ -1,0 +1,9 @@
+projectID;title;deliverableType;url
+101000001;D4.1 Interactive mapping platform (first release);Websites, patent fillings, videos etc.;
+101000001;D4.2 E-learning module for educators;Websites, patent fillings, videos etc.;
+101000001;D2.1 Ethnographic fieldwork protocol;Documents, reports;https://example.org/d21.pdf
+101000002;D3.1 Gamified application prototype;Demonstrators, pilots, prototypes;
+101000002;D3.2 Teacher dashboard;Websites, patent fillings, videos etc.;
+101000004;D5.1 Web-based repository;Websites, patent fillings, videos etc.;https://heritage3d.example.org/repo
+101000004;D5.2 VR visit application;Demonstrators, pilots, prototypes;
+101000003;D1.1 Material synthesis report;Documents, reports;https://example.org/quantx-d11.pdf
