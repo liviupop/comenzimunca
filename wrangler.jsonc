@@ -1,7 +1,7 @@
 // Cloudflare Workers config: serves wp4-rescue/site as static assets.
 // Used by the "npx wrangler deploy" deploy command in Workers Builds.
 {
-  "name": "wp4-rescue",
+  "name": "wp4help",
   "compatibility_date": "2026-07-16",
   "assets": {
     "directory": "./wp4-rescue/site"
