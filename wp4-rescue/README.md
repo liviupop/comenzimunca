@@ -23,6 +23,12 @@ make refresh     # ingest + score for the current month
 make enrich      # same, plus polite URL liveness checks (S3) — slow by design
 ```
 
+> **Run `make enrich` from an open network**, not a restricted CI/sandbox.
+> Behind a filtering proxy, external sites return 403 and would be misread as
+> "dead". The checker treats 401/403/405/429/451 and proxy errors as *blocked*
+> (neutral, not distress evidence), but a sandbox that blocks everything yields
+> no useful S3 signal — run it locally.
+
 Outputs land in `data/out/`:
 
 - `prospects-YYYY-MM.csv` — ranked prospects (also copied to `prospects.csv`)
@@ -44,10 +50,21 @@ Monthly automation: `crontab -e` →
 A separate **Fit** flag (coordinator in RO/HU/IT/HR/CY/PL/ES/UA) adds +5 to
 the *outreach priority* ordering but never enters the distress score itself.
 
-**Eligibility (before any scoring):** only *ongoing* projects — status
-SIGNED/active, not yet ended — that **started no later than Dec 31 of the
-previous year**. A project started this year cannot be in distress yet
-(toggle: `REQUIRE_STARTED_BY_PREVIOUS_YEAR` in `config.py`).
+**Eligibility (before any scoring):**
+- only *ongoing* projects — status SIGNED/active, not yet ended — that
+  **started no later than Dec 31 of the previous year** (a project started
+  this year cannot be in distress yet; toggle
+  `REQUIRE_STARTED_BY_PREVIOUS_YEAR`).
+- **ERC and MSCA schemes excluded.** The first real run's review ritual showed
+  these single-beneficiary frontier-research / fellowship grants were 35% of
+  prospects and 56% of the top 50 — all noise, because "platform"/"toolkit"
+  there means a lab method, not a consortium deliverable to rescue (toggle
+  `EXCLUDE_FUNDING_SCHEME_SUBSTRINGS`).
+
+**S1 lexicon is two-tier** (calibrated on real 2026-06 CORDIS text): bare
+`platform`/`application(s)` are *weak* signals (they usually mean a technology
+platform or a use case), so the gate needs one *strong* match (e-learning,
+portal, dashboard, "mobile app", gamif*, VR/AR, …) or two distinct weak ones.
 
 All thresholds live in `wp4rescue/config.py`. Default output cutoff is 40 —
 tune it after the first run to get a reviewable ~50/month (PRD §10.3).

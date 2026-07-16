@@ -141,31 +141,49 @@ def test_latest_allowed_start():
     assert latest_allowed_start(dt.date(2026, 7, 16)) == dt.date(2025, 12, 31)
 
 
-def _project_row(pid, start, end, status="SIGNED"):
+def _project_row(pid, start, end, status="SIGNED", scheme="HORIZON-RIA"):
     return (pid, "HORIZON", f"P{pid}", "Digital platform project",
             "an interactive online portal", start, end, 100000.0, None,
-            "ORG", "RO", "OTH", 3, status, "https://example.org")
+            "ORG", "RO", "OTH", 3, scheme, status, "https://example.org")
 
 
-def test_build_prospects_eligibility():
+def _make_con():
     con = duckdb.connect(":memory:")
     con.execute("""CREATE TABLE projects (
         project_id VARCHAR, programme VARCHAR, acronym VARCHAR, title VARCHAR,
         objective VARCHAR, start_date DATE, end_date DATE, total_cost DOUBLE,
         url VARCHAR, coordinator_name VARCHAR, coordinator_country VARCHAR,
-        coordinator_activity_type VARCHAR, n_partners INT, status VARCHAR,
-        source_link VARCHAR)""")
+        coordinator_activity_type VARCHAR, n_partners INT, funding_scheme VARCHAR,
+        status VARCHAR, source_link VARCHAR)""")
     con.execute("""CREATE TABLE deliverables (
         project_id VARCHAR, title VARCHAR, deliverable_type VARCHAR, url VARCHAR)""")
+    return con
+
+
+def test_build_prospects_eligibility():
+    con = _make_con()
     rows = [
         _project_row("1", dt.date(2024, 8, 1), dt.date(2027, 7, 31)),   # eligible
         _project_row("2", dt.date(2026, 2, 1), dt.date(2028, 1, 31)),   # started THIS year -> out
         _project_row("3", dt.date(2023, 1, 1), dt.date(2026, 1, 1)),    # already ended -> out
         _project_row("4", dt.date(2024, 8, 1), dt.date(2027, 7, 31), status="CLOSED"),  # not ongoing -> out
     ]
-    con.executemany("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+    con.executemany("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
     prospects = build_prospects(con, today=TODAY, threshold=1)
     assert list(prospects["project_id"]) == ["1"]
+
+
+def test_build_prospects_excludes_erc_msca():
+    con = _make_con()
+    rows = [
+        _project_row("1", dt.date(2024, 8, 1), dt.date(2027, 7, 31), scheme="HORIZON-RIA"),   # in
+        _project_row("2", dt.date(2024, 8, 1), dt.date(2027, 7, 31), scheme="HORIZON-ERC"),   # out
+        _project_row("3", dt.date(2024, 8, 1), dt.date(2027, 7, 31), scheme="HORIZON-MSCA-PF"),  # out
+        _project_row("4", dt.date(2024, 8, 1), dt.date(2027, 7, 31), scheme="HORIZON-IA"),    # in
+    ]
+    con.executemany("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+    prospects = build_prospects(con, today=TODAY, threshold=1)
+    assert set(prospects["project_id"]) == {"1", "4"}
 
 
 # --- URL classification ------------------------------------------------------

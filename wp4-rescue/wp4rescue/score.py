@@ -171,13 +171,23 @@ def build_prospects(con: duckdb.DuckDBPyConnection,
     url_statuses = url_statuses or {}
 
     start_cutoff = latest_allowed_start(today) if config.REQUIRE_STARTED_BY_PREVIOUS_YEAR else today
-    projects = con.execute("""
+    has_scheme = "funding_scheme" in [c[0] for c in con.execute(
+        "SELECT * FROM projects LIMIT 0").description]
+    scheme_pred, params = "", [start_cutoff, today]
+    if has_scheme and config.EXCLUDE_FUNDING_SCHEME_SUBSTRINGS:
+        clauses = []
+        for sub in config.EXCLUDE_FUNDING_SCHEME_SUBSTRINGS:
+            clauses.append("COALESCE(funding_scheme, '') NOT LIKE ?")
+            params.append(f"%{sub}%")
+        scheme_pred = " AND " + " AND ".join(clauses)
+    projects = con.execute(f"""
         SELECT * FROM projects
         WHERE lower(status) IN ('signed', 'active', 'ongoing')
           AND start_date IS NOT NULL AND end_date IS NOT NULL
           AND start_date <= ?
           AND end_date >= ?
-    """, [start_cutoff, today]).df()
+          {scheme_pred}
+    """, params).df()
     for col in ("start_date", "end_date"):
         projects[col] = pd.to_datetime(projects[col]).dt.date
     # pandas NaN is truthy — normalize missing URLs to None for the S3 check

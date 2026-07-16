@@ -139,3 +139,9 @@ SCORE_THRESHOLD = 50
 # Eligibility: only ongoing projects that started no later than Dec 31 of the
 # previous year — a project started this year cannot be in distress yet.
 REQUIRE_STARTED_BY_PREVIOUS_YEAR = True
+
+# Exclude funding schemes that never have a consortium digital deliverable to
+# rescue: ERC (single-beneficiary frontier research — "platform"/"toolkit" is
+# a lab method) and MSCA (fellowships/mobility). The review ritual on the first
+# real run showed these were 35% of prospects and 56% of the top 50, all noise.
+EXCLUDE_FUNDING_SCHEME_SUBSTRINGS = ("ERC", "MSCA")

@@ -58,6 +58,10 @@ def _robots_allowed(url: str, client: httpx.Client) -> bool:
 
 
 def classify_page(status_code: int, html: str) -> UrlStatus:
+    # bot-protection / rate-limit / auth: the site is up, we just can't see it —
+    # NOT evidence the promised deliverable is missing, so treat as neutral
+    if status_code in (401, 403, 405, 429, 451):
+        return UrlStatus("blocked", f"HTTP {status_code} (access blocked, not dead)")
     if status_code >= 400:
         return UrlStatus("dead", f"HTTP {status_code}")
     text = _TAG_RE.sub(" ", html)
@@ -79,6 +83,9 @@ def check_url(url: str, client: httpx.Client) -> UrlStatus:
     try:
         r = client.get(url)
         return classify_page(r.status_code, r.text)
+    except httpx.ProxyError as e:
+        # network-policy artifact, not the site being down
+        return UrlStatus("blocked", f"proxy: {e}")
     except httpx.HTTPError as e:
         return UrlStatus("dead", f"{type(e).__name__}")
 

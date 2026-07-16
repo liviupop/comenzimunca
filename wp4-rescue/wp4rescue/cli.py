@@ -40,25 +40,20 @@ def cmd_score(month: str, threshold: int | None, enrich_urls: bool,
         deliverables_csv=raw / "projectDeliverables.csv",
     )
 
-    url_statuses = {}
-    if enrich_urls:
+    # first pass without URL evidence; --enrich then checks only the URLs of
+    # prospects already above threshold (bounded work: S3 can only raise
+    # scores, so the ranking within the reviewed set stays honest)
+    prospects = score.build_prospects(con, threshold=threshold)
+    if enrich_urls and len(prospects):
         from . import enrich as enrich_mod
-        # gate first (S1) so we only hit URLs of projects we actually care about
-        gated = con.execute("""
-            SELECT project_id, url FROM projects
-            WHERE url IS NOT NULL AND lower(status) IN ('signed','active','ongoing')
-        """).fetchall()
         candidates = {
-            str(pid): url for pid, url in gated
-            if score.s1_gate(None, con.execute(
-                "SELECT title || ' ' || COALESCE(objective,'') FROM projects WHERE project_id = ?",
-                [pid]).fetchone()[0])
+            str(r.project_id): r.url for r in prospects.itertuples()
+            if isinstance(r.url, str) and r.url
         }
-        log.info("enriching %d gated project URLs", len(candidates))
+        log.info("enriching %d prospect URLs (rate-limited)", len(candidates))
         url_statuses = enrich_mod.enrich(candidates)
-
-    prospects = score.build_prospects(con, url_statuses=url_statuses,
-                                      threshold=threshold)
+        prospects = score.build_prospects(con, url_statuses=url_statuses,
+                                          threshold=threshold)
     output.write_prospects(prospects, month)
     output.write_diff(month)
     con.close()
