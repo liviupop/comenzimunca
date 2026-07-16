@@ -44,14 +44,31 @@ ERASMUS_SUBDIR = "erasmus"
 
 # ---------------------------------------------------------------------------
 # S1 — digital-deliverable lexicon (gate). Multilingual variants: Phase 2.
+#
+# Calibrated on the real 2026-06 CORDIS corpus: bare "platform" and
+# "application(s)" overwhelmingly mean technology platforms and use cases in
+# objective text, so they only count as WEAK signals. The gate passes on one
+# STRONG match, or two distinct WEAK matches.
 # ---------------------------------------------------------------------------
-LEXICON = re.compile(
+LEXICON_STRONG = re.compile(
     r"\b("
-    r"platform|portal|app(?:lication)?s?|e-?learning|mooc|gamif\w*|"
-    r"interactiv\w*|dashboard|tool\s?kit|toolkit|repositor\w*|"
-    r"digital archive|virtual|vr|ar\b|serious game|web-?based|"
-    r"online course|database"
+    r"e-?learning|mooc|gamif\w*|serious game|online course|web-?based|"
+    r"(?:digital|online|interactive|web|e-) ?platform|portal|dashboard|"
+    r"tool ?kit|repositor\w*|digital archive|virtual reality|"
+    r"augmented reality|(?-i:VR|AR)|virtual museum|virtual tour|"
+    r"(?:mobile|web|software|smartphone|digital|online) "
+    r"app(?:lication)?s?|online tool|digital tool|interactive map\w*"
     r")\b",
+    re.IGNORECASE,
+)
+LEXICON_WEAK = re.compile(
+    r"\b(platform|app|apps|application|applications|interactiv\w*|"
+    r"virtual|database|digital)\b",
+    re.IGNORECASE,
+)
+# combined pattern, used for page-content checks (S3) and deliverable titles
+LEXICON = re.compile(
+    f"(?:{LEXICON_STRONG.pattern})|(?:{LEXICON_WEAK.pattern})",
     re.IGNORECASE,
 )
 
@@ -114,8 +131,10 @@ NGO_ACTIVITY_TYPES = {"OTH"}
 FIT_COUNTRIES = {"RO", "HU", "IT", "HR", "CY", "PL", "ES", "UA"}
 FIT_PTS = 5  # applied to outreach priority only, never to distress score
 
-# Minimum distress score to appear in prospects.csv (tune after first run)
-SCORE_THRESHOLD = 40
+# Minimum distress score to appear in prospects.csv.
+# Calibrated on the 2026-06 CORDIS corpus: 50 yields ~190 prospects
+# (~40 fit, ~20 hot) — inside the PRD's reviewable 50-200 band.
+SCORE_THRESHOLD = 50
 
 # Eligibility: only ongoing projects that started no later than Dec 31 of the
 # previous year — a project started this year cannot be in distress yet.

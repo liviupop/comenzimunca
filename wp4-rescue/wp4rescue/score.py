@@ -45,11 +45,27 @@ class ScoreBreakdown:
 
 def s1_gate(title: str | None, objective: str | None,
             deliverable_titles: list[str] | None = None) -> list[str]:
-    """Return matched lexicon keywords (empty list = project fails the gate)."""
+    """Return matched lexicon keywords (empty list = project fails the gate).
+
+    Passes on one STRONG match, or two distinct WEAK matches — a lone
+    "platform"/"application" in an objective is a technology platform or a
+    use case far more often than a digital deliverable.
+    """
     text = " ".join(
         t for t in [title or "", objective or "", *(deliverable_titles or [])] if t
     )
-    return sorted({m.group(0).lower() for m in config.LEXICON.finditer(text)})
+    strong = {m.group(0).lower() for m in config.LEXICON_STRONG.finditer(text)}
+    weak = {m.group(0).lower() for m in config.LEXICON_WEAK.finditer(text)}
+    if not strong and len(weak) < 2:
+        return []
+    return sorted(strong | weak)
+
+
+def s1_strong(title: str | None, objective: str | None) -> bool:
+    """True when the objective/title carries a STRONG digital-deliverable
+    promise — the bar for the S4 fallback when no deliverables plan exists."""
+    text = f"{title or ''} {objective or ''}"
+    return bool(config.LEXICON_STRONG.search(text))
 
 
 def elapsed_fraction(start: dt.date | None, end: dt.date | None,
@@ -185,8 +201,9 @@ def build_prospects(con: duckdb.DuckDBPyConnection,
             planned = len(digital)
             published = int(digital["url"].notna().sum())
         else:
-            # no plan data: fall back to "strongly implied in the objective"
-            planned = 1 if s1_gate(p.get("title"), p.get("objective")) else 0
+            # no plan data: fall back to "strongly implied in the objective" —
+            # STRONG lexicon only, so a generic "platform" never triggers S4
+            planned = 1 if s1_strong(p.get("title"), p.get("objective")) else 0
             published = 0
 
         b = score_project(p, today, titles, planned, published,

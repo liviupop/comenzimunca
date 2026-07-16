@@ -11,10 +11,12 @@ resolved through candidate lists and missing ones fail loudly.
 """
 from __future__ import annotations
 
+import csv
 import logging
 from pathlib import Path
 
 import duckdb
+import pandas as pd
 
 from . import config
 
@@ -45,18 +47,34 @@ ORG_URL_CANDIDATES = ["organizationURL", "organisationURL"]
 
 DELIVERABLE_COLUMNS = {
     "project_id": ["projectID"],
-    "title": ["title"],
+    # the 2026 bundle dropped `title` in favour of `description`
+    "title": ["title", "description"],
     "deliverable_type": ["deliverableType", "type"],
     "url": ["url"],
 }
 
 
-def _read_csv_rel(con: duckdb.DuckDBPyConnection, path: Path):
-    """CORDIS CSVs are semicolon-delimited, quoted, UTF-8."""
-    return con.read_csv(
-        str(path), delimiter=";", header=True, quotechar='"',
-        all_varchar=True, ignore_errors=True,
-    )
+def _read_csv_df(path: Path) -> pd.DataFrame:
+    """CORDIS CSVs are semicolon-delimited, quoted, UTF-8 — and imperfect:
+    a small share of rows omit a trailing field or carry stray quotes, which
+    DuckDB's strict sniffer rejects outright. Parse with Python's csv module
+    and pad/trim rows to header width; the columns this pipeline uses sit
+    before the malformation point in every observed case.
+    """
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        reader = csv.reader(f, delimiter=";", quotechar='"')
+        header = next(reader)
+        width = len(header)
+        rows, irregular = [], 0
+        for row in reader:
+            if len(row) != width:
+                irregular += 1
+                row = row[:width] + [None] * (width - len(row))
+            rows.append(row)
+    if irregular:
+        log.warning("%s: %d/%d rows had irregular width (padded/trimmed)",
+                    path.name, irregular, len(rows))
+    return pd.DataFrame(rows, columns=header)
 
 
 def _resolve(available: list[str], mapping: dict[str, list[str]], source: str) -> dict[str, str]:
@@ -89,14 +107,14 @@ def normalize(
     programme: str = "HORIZON",
 ) -> None:
     """Build unified projects + deliverables tables for one programme."""
-    proj_rel = _read_csv_rel(con, project_csv)
-    pc = _resolve(proj_rel.columns, PROJECT_COLUMNS, project_csv.name)
-    url_col = _optional(proj_rel.columns, PROJECT_URL_CANDIDATES)
+    proj_rel = _read_csv_df(project_csv)
+    pc = _resolve(list(proj_rel.columns), PROJECT_COLUMNS, project_csv.name)
+    url_col = _optional(list(proj_rel.columns), PROJECT_URL_CANDIDATES)
     url_expr = f'NULLIF(TRIM(p."{url_col}"), \'\')' if url_col else "NULL"
 
-    org_rel = _read_csv_rel(con, organization_csv)
-    oc = _resolve(org_rel.columns, ORG_COLUMNS, organization_csv.name)
-    org_url_col = _optional(org_rel.columns, ORG_URL_CANDIDATES)
+    org_rel = _read_csv_df(organization_csv)
+    oc = _resolve(list(org_rel.columns), ORG_COLUMNS, organization_csv.name)
+    org_url_col = _optional(list(org_rel.columns), ORG_URL_CANDIDATES)
     org_url_expr = f'NULLIF(TRIM(o."{org_url_col}"), \'\')' if org_url_col else "NULL"
 
     con.register("raw_project", proj_rel)
@@ -145,8 +163,8 @@ def normalize(
     con.unregister("raw_org")
 
     if deliverables_csv and deliverables_csv.exists():
-        del_rel = _read_csv_rel(con, deliverables_csv)
-        dc = _resolve(del_rel.columns, DELIVERABLE_COLUMNS, deliverables_csv.name)
+        del_rel = _read_csv_df(deliverables_csv)
+        dc = _resolve(list(del_rel.columns), DELIVERABLE_COLUMNS, deliverables_csv.name)
         con.register("raw_del", del_rel)
         con.execute(f"""
             CREATE OR REPLACE TABLE deliverables AS
