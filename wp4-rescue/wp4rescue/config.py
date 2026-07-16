@@ -116,3 +116,7 @@ FIT_PTS = 5  # applied to outreach priority only, never to distress score
 
 # Minimum distress score to appear in prospects.csv (tune after first run)
 SCORE_THRESHOLD = 40
+
+# Eligibility: only ongoing projects that started no later than Dec 31 of the
+# previous year — a project started this year cannot be in distress yet.
+REQUIRE_STARTED_BY_PREVIOUS_YEAR = True

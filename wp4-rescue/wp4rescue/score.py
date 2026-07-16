@@ -106,6 +106,12 @@ def modifiers(n_partners: int | None, activity_type: str | None) -> int:
     return pts
 
 
+def latest_allowed_start(today: dt.date) -> dt.date:
+    """Eligibility cutoff: the project must have started no later than
+    Dec 31 of the previous year."""
+    return dt.date(today.year - 1, 12, 31)
+
+
 def next_reporting_window(start: dt.date | None, today: dt.date) -> str:
     """Rough Horizon periodic-reporting estimate: ~M18 then ~M36 (Phase 2)."""
     if not start:
@@ -148,12 +154,14 @@ def build_prospects(con: duckdb.DuckDBPyConnection,
     threshold = config.SCORE_THRESHOLD if threshold is None else threshold
     url_statuses = url_statuses or {}
 
+    start_cutoff = latest_allowed_start(today) if config.REQUIRE_STARTED_BY_PREVIOUS_YEAR else today
     projects = con.execute("""
         SELECT * FROM projects
         WHERE lower(status) IN ('signed', 'active', 'ongoing')
           AND start_date IS NOT NULL AND end_date IS NOT NULL
+          AND start_date <= ?
           AND end_date >= ?
-    """, [today]).df()
+    """, [start_cutoff, today]).df()
     for col in ("start_date", "end_date"):
         projects[col] = pd.to_datetime(projects[col]).dt.date
     # pandas NaN is truthy — normalize missing URLs to None for the S3 check

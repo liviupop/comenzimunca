@@ -8,11 +8,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import pandas as pd
 import pytest
 
+import duckdb
+
 from wp4rescue import config
 from wp4rescue.enrich import classify_page
 from wp4rescue.score import (
-    UrlStatus, elapsed_fraction, modifiers, next_reporting_window, s1_gate,
-    s2_timeline, s3_absence, s4_deliverable_gap, score_project,
+    UrlStatus, build_prospects, elapsed_fraction, latest_allowed_start,
+    modifiers, next_reporting_window, s1_gate, s2_timeline, s3_absence,
+    s4_deliverable_gap, score_project,
 )
 
 TODAY = dt.date(2026, 7, 16)
@@ -117,6 +120,39 @@ def test_gate_returns_none():
         "coordinator_activity_type": "REC", "coordinator_country": "DE",
     })
     assert score_project(row, TODAY, [], 0, 0) is None
+
+
+# --- Eligibility: ongoing + started by last year -----------------------------
+
+def test_latest_allowed_start():
+    assert latest_allowed_start(dt.date(2026, 7, 16)) == dt.date(2025, 12, 31)
+
+
+def _project_row(pid, start, end, status="SIGNED"):
+    return (pid, "HORIZON", f"P{pid}", "Digital platform project",
+            "an interactive online portal", start, end, 100000.0, None,
+            "ORG", "RO", "OTH", 3, status, "https://example.org")
+
+
+def test_build_prospects_eligibility():
+    con = duckdb.connect(":memory:")
+    con.execute("""CREATE TABLE projects (
+        project_id VARCHAR, programme VARCHAR, acronym VARCHAR, title VARCHAR,
+        objective VARCHAR, start_date DATE, end_date DATE, total_cost DOUBLE,
+        url VARCHAR, coordinator_name VARCHAR, coordinator_country VARCHAR,
+        coordinator_activity_type VARCHAR, n_partners INT, status VARCHAR,
+        source_link VARCHAR)""")
+    con.execute("""CREATE TABLE deliverables (
+        project_id VARCHAR, title VARCHAR, deliverable_type VARCHAR, url VARCHAR)""")
+    rows = [
+        _project_row("1", dt.date(2024, 8, 1), dt.date(2027, 7, 31)),   # eligible
+        _project_row("2", dt.date(2026, 2, 1), dt.date(2028, 1, 31)),   # started THIS year -> out
+        _project_row("3", dt.date(2023, 1, 1), dt.date(2026, 1, 1)),    # already ended -> out
+        _project_row("4", dt.date(2024, 8, 1), dt.date(2027, 7, 31), status="CLOSED"),  # not ongoing -> out
+    ]
+    con.executemany("INSERT INTO projects VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", rows)
+    prospects = build_prospects(con, today=TODAY, threshold=1)
+    assert list(prospects["project_id"]) == ["1"]
 
 
 # --- URL classification ------------------------------------------------------
